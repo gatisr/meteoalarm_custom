@@ -6,7 +6,8 @@
         "data": {
           "country": "Valsts",
           "province": "Pasta indekss vai pilsēta",
-          "language": "Valoda"
+          "language": "Valoda",
+          "update_interval": "Atjaunināšanas intervāls (minūtes)"
         }
       }
     },
