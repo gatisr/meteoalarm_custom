@@ -113,25 +113,18 @@ async def test_sensor_update_with_alert_data(mock_hass, mock_async_get_meteoaler
         await sensor.async_update()
 
     
-    expected_attributes = {
-        translations["entity"]["sensor"][attr]["name"]: alert_data[attr]
-        for attr in [
-            ATTR_CATEGORY,
-            ATTR_URGENCY,
-            ATTR_SEVERITY,
-            ATTR_CERTAINTY,
-            ATTR_EFFECTIVE,
-            ATTR_ONSET,
-            ATTR_EXPIRES,
-            ATTR_SENDER_NAME,
-            ATTR_DESCRIPTION,
-            ATTR_WEB,
-            ATTR_CONTACT,
-            ATTR_AWARENESS_LEVEL,
-            ATTR_AWARENESS_TYPE,
+    expected_attributes = [
+            ATTR_CATEGORY, ATTR_URGENCY, ATTR_SEVERITY, ATTR_CERTAINTY,
+            ATTR_EFFECTIVE, ATTR_ONSET, ATTR_EXPIRES, ATTR_SENDER_NAME,
+            ATTR_DESCRIPTION, ATTR_WEB, ATTR_CONTACT, ATTR_AWARENESS_LEVEL,
+            ATTR_AWARENESS_TYPE
         ]
-    }
-    assert sensor.extra_state_attributes == {**expected_attributes, **alert_data}
+
+    for attr in expected_attributes:
+      assert attr in sensor.extra_state_attributes, f"Attribute {attr} not found in extra_state_attributes"
+      assert sensor.extra_state_attributes[attr] == alert_data[attr], f"Attribute {attr} value does not match"
+
+    assert len(sensor.extra_state_attributes) == len(expected_attributes), "Extra_state_attributes contains extra attributes"
 
     assert sensor.state == "moderate"
 

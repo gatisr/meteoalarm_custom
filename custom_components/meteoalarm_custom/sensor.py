@@ -1,3 +1,4 @@
+import aiofiles
 import logging
 import os
 import json
@@ -8,8 +9,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import generate_entity_id
-from homeassistant.util import Throttle
 import asyncio
+from functools import partial
 from datetime import datetime, timedelta
 
 from .const import CONF_COUNTRY, CONF_PROVINCE, CONF_LANGUAGE, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
@@ -23,9 +24,12 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_get_meteoalert_data(country, province, language):
     """Asynchronous wrapper for Meteoalert.get_alert()"""
+    def get_alert(country, province, language):
+        meteoalert = Meteoalert(country, province, language)
+        return meteoalert.get_alert()
+
     loop = asyncio.get_running_loop()
-    meteoalert = Meteoalert(country, province, language)
-    return await loop.run_in_executor(None, meteoalert.get_alert)
+    return await loop.run_in_executor(None, partial(get_alert, country, province, language))
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     config = entry.data
@@ -40,6 +44,7 @@ class MeteoAlarmSensor(SensorEntity):
         self._language = config[CONF_LANGUAGE]
         self._lang = self._language.split("-")[0]
         self._update_interval = timedelta(minutes=config[CONF_UPDATE_INTERVAL])
+        self._attr_name = f"MeteoAlarm ({self._country}, {self._province})"  # Default name
         # ToDo: use DEFAULT_UPDATE_INTERVAL if not provided
         self._attr_unique_id = f"{self._country}_{self._province}_{self._language}"
         self._data = None
@@ -47,21 +52,33 @@ class MeteoAlarmSensor(SensorEntity):
             self.entity_id = generate_entity_id(ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass)
         else:
             self.entity_id = f"{ENTITY_ID_FORMAT.format(self._attr_unique_id)}"
-        self._translations = self.load_translations()
+        self._translations = {}
         self._last_update = None
 
+    async def async_added_to_hass(self):
+        """Load translations when added to hass."""
+        await self.load_translations()
 
-    def load_translations(self):
+    async def load_translations(self):
+        """Load translations asynchronously."""
         lang_file = f"{os.path.dirname(__file__)}/translations/{self._lang}.json"
-        with open(lang_file) as file:
-            return json.load(file)
+        try:
+            async with aiofiles.open(lang_file, mode='r') as file:
+                content = await file.read()
+                self._translations = json.loads(content)
+        except Exception as err:
+            _LOGGER.error(f"Error loading translations: {err}")
+            self._translations = {}
 
     @property
     def name(self):
-        # Fix: Use correct formatting from translations file
-        return self._translations["entity"]["sensor"]["name"]["name"].format(
-            country=self._country, province=self._province
-        )
+        try:
+            return self._translations["entity"]["sensor"]["name"]["name"].format(
+                country=self._country, province=self._province
+            )
+        except (KeyError, AttributeError):
+            _LOGGER.warning("Translation for name not found, using default")
+            return self._attr_name
 
     @property
     def state(self) -> str | None:
@@ -90,10 +107,12 @@ class MeteoAlarmSensor(SensorEntity):
             for attr_key in [ATTR_CATEGORY, ATTR_URGENCY, ATTR_SEVERITY, ATTR_CERTAINTY, ATTR_AWARENESS_LEVEL, ATTR_AWARENESS_TYPE, ATTR_EXPIRES, ATTR_SENDER_NAME, ATTR_DESCRIPTION, ATTR_WEB, ATTR_CONTACT, ATTR_EFFECTIVE, ATTR_ONSET]:
                 original_value = self._data.get(attr_key)
                 if original_value:
-                    translated_name = self._translations["entity"]["sensor"][attr_key]["name"]
-                    attributes[translated_name] = original_value 
-
-            return {**attributes, **self._data}
+                    try:
+                        translated_name = self._translations["entity"]["sensor"][attr_key]["name"]
+                    except KeyError:
+                        translated_name = attr_key
+                    attributes[translated_name] = original_value
+            return attributes
         return {}
 
     @property

@@ -14,7 +14,8 @@
   "issue_tracker": "https://github.com/gatisr/issues",
   "requirements": [
     "meteoalertapi==0.3.1",
-    "asyncio==3.4.3"
+    "asyncio==3.4.3",
+    "aiofiles==24.1.0"
   ],
   "version": "0.3.0"
 }
