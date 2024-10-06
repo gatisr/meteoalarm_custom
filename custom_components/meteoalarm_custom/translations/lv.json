@@ -1,0 +1,76 @@
+{
+  "title": "MeteoAlarm",
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "country": "Valsts",
+          "province": "Pasta indekss vai pilsēta",
+          "language": "Valoda"
+        }
+      }
+    },
+    "error": {
+      "invalid_country": "Nederīga valsts",
+      "invalid_province": "Nederīga province"
+    },
+    "abort": {
+      "single_instance_allowed": "Atļauts tikai viens integrācijas eksemplārs.",
+      "already_configured": "Šī atrašanās vieta jau ir konfigurēta."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "name": {
+        "name": "MeteoAlarm ({country}, {province})"
+      },
+      "status": {
+        "state": {
+          "moderate": "Mērens brīdinājums",
+          "severe": "Augsts brīdinājums",
+          "unavailable": "Nav brīdinājumu",
+          "extreme": "Ekstremāls brīdinājums"
+        }
+      },
+      "category": {
+        "name": "Kategorija"
+      },
+      "urgency": {
+        "name": "Steidzamība"
+      },
+      "severity": {
+        "name": "Bīstamība"
+      },
+      "certainty": {
+        "name": "Pārliecība"
+      },
+      "effective": {
+        "name": "Spēkā stāšanās laiks"
+      },
+      "onset": {
+        "name": "Sākuma laiks"
+      },
+      "expires": {
+        "name": "Beigu laiks"
+      },
+      "sender_name": {
+        "name": "Sūtītāja nosaukums"
+      },
+      "description": {
+        "name": "Apraksts"
+      },
+      "web": {
+        "name": "Tīmeklis"
+      },
+      "contact": {
+        "name": "Kontakti"
+      },
+      "awareness_level": {
+        "name": "Informētības līmenis"
+      },
+      "awareness_type": {
+        "name": "Informētības veids"
+      }
+    }
+  }
+}

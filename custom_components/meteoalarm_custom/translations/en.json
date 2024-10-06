@@ -1,0 +1,76 @@
+{
+  "title": "MeteoAlarm",
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "country": "Country",
+          "province": "Postal code or city",
+          "language": "Language"
+        }
+      }
+    },
+    "error": {
+      "invalid_country": "Invalid country",
+      "invalid_province": "Invalid province"
+    },
+    "abort": {
+      "single_instance_allowed": "Only one instance of the integration is allowed.",
+      "already_configured": "This location is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "name": {
+        "name": "MeteoAlarm ({country}, {province})"
+      },
+      "status": {
+        "state": {
+          "moderate": "Moderate warning",
+          "severe": "Severe warning",
+          "unavailable": "No warnings",
+          "extreme": "Extreme warning"
+        }
+      },
+      "category": {
+        "name": "Category"
+      },
+      "urgency": {
+        "name": "Urgency"
+      },
+      "severity": {
+        "name": "Severity"
+      },
+      "certainty": {
+        "name": "Certainty"
+      },
+      "effective": {
+        "name": "Effective time"
+      },
+      "onset": {
+        "name": "Onset time"
+      },
+      "expires": {
+        "name": "Expiration time"
+      },
+      "sender_name": {
+        "name": "Sender name"
+      },
+      "description": {
+        "name": "Description"
+      },
+      "web": {
+        "name": "Web"
+      },
+      "contact": {
+        "name": "Contact"
+      },
+      "awareness_level": {
+        "name": "Awareness level"
+      },
+      "awareness_type": {
+        "name": "Awareness type"
+      }
+    }
+  }
+}

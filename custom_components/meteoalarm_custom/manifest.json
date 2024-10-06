@@ -1,0 +1,19 @@
+{
+  "domain": "meteoalarm_custom",
+  "name": "MeteoAlarm Custom",
+  "after_dependencies": [
+    "http"
+  ],
+  "codeowners": [
+    "@gatisr"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/gatisr/meteoalarm_custom",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/gatisr/issues",
+  "requirements": [
+    "meteoalertapi==0.3.1"
+  ],
+  "version": "0.1.0"
+}
