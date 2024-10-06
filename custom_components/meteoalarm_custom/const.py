@@ -31,3 +31,5 @@ ATTR_WEB = "web"
 ATTR_CONTACT = "contact"
 ATTR_AWARENESS_LEVEL = "awareness_level"
 ATTR_AWARENESS_TYPE = "awareness_type"
+
+ENTITY_ID_FORMAT = "sensor.meteoalarm_{}"
