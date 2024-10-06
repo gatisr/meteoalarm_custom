@@ -16,5 +16,5 @@
     "meteoalertapi==0.3.1",
     "asyncio==3.4.3"
   ],
-  "version": "0.2.0"
+  "version": "0.3.0"
 }
