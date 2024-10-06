@@ -6,7 +6,8 @@
         "data": {
           "country": "Country",
           "province": "Postal code or city",
-          "language": "Language"
+          "language": "Language",
+          "update_interval": "Update interval (minutes)"
         }
       }
     },
