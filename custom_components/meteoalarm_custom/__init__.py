@@ -10,7 +10,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Run migration if needed
     if entry.version < 2:  # Increment this when making breaking changes
         await async_migrate_entry(hass, entry)
-        entry.version = 2
+        hass.config_entries.async_update_entry(entry, version=2)
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry.data
