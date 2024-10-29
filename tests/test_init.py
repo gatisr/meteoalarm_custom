@@ -22,6 +22,8 @@ def mock_config_entry():
 
 @pytest.mark.asyncio
 async def test_async_setup_entry(hass: HomeAssistant, mock_config_entry):
+    hass.config_entries._entries[mock_config_entry.entry_id] = mock_config_entry
+
     with patch("homeassistant.config_entries.ConfigEntries.async_forward_entry_setups", return_value=None) as mock_forward:
         assert await async_setup_entry(hass, mock_config_entry)
         assert DOMAIN in hass.data
@@ -30,10 +32,12 @@ async def test_async_setup_entry(hass: HomeAssistant, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_async_unload_entry(hass: HomeAssistant, mock_config_entry):
+    hass.config_entries._entries[mock_config_entry.entry_id] = mock_config_entry
+
     # Setup the entry first
     with patch("homeassistant.config_entries.ConfigEntries.async_forward_entry_setups", return_value=None):
         await async_setup_entry(hass, mock_config_entry)
-    
+
     # Now test unloading
     with patch("homeassistant.config_entries.ConfigEntries.async_unload_platforms", return_value=True) as mock_unload:
         assert await async_unload_entry(hass, mock_config_entry)
