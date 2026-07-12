@@ -158,6 +158,7 @@ class MeteoAlarmApi:
         matched = self._match_entries(entries)
         self.resolved_area = matched[0].area if matched else None
 
+        now = dt_util.utcnow()
         alerts: list[MeteoAlarmAlert] = []
         for entry in matched:
             if not entry.cap_url:
@@ -168,8 +169,13 @@ class MeteoAlarmApi:
             except MeteoAlarmError as err:
                 _LOGGER.warning("Failed to fetch CAP data from %s: %s", entry.cap_url, err)
                 continue
-            if alert:
-                alerts.append(alert)
+            if alert is None:
+                continue
+            # The feed keeps entries around for a while after they end;
+            # don't report alerts that have already expired.
+            if alert.expires is not None and alert.expires <= now:
+                continue
+            alerts.append(alert)
 
         alerts.sort(key=lambda a: severity_rank(a.severity), reverse=True)
         return alerts

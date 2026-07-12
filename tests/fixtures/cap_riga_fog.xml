@@ -15,7 +15,7 @@
     <certainty>Likely</certainty>
     <effective>2026-07-12T01:00:00+03:00</effective>
     <onset>2026-07-12T01:00:00+03:00</onset>
-    <expires>2026-07-12T10:00:00+03:00</expires>
+    <expires>2126-07-12T10:00:00+03:00</expires>
     <senderName>Latvian Environment, Geology and Meteorology Centre</senderName>
     <description>Fog in places, visibility 200-500 m.</description>
     <web>https://bridinajumi.meteo.lv/</web>
@@ -41,7 +41,7 @@
     <certainty>Likely</certainty>
     <effective>2026-07-12T01:00:00+03:00</effective>
     <onset>2026-07-12T01:00:00+03:00</onset>
-    <expires>2026-07-12T10:00:00+03:00</expires>
+    <expires>2126-07-12T10:00:00+03:00</expires>
     <senderName>Latvijas Vides, ģeoloģijas un meteoroloģijas centrs</senderName>
     <description>Vietām migla, redzamība 200-500 m.</description>
     <web>https://bridinajumi.meteo.lv/</web>

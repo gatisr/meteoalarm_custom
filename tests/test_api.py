@@ -109,6 +109,21 @@ async def test_unsupported_country(hass, aioclient_mock):
         await api.get_alerts()
 
 
+async def test_expired_alerts_are_dropped(hass, aioclient_mock):
+    """Alerts past their expiry stay in the feed for a while but are ignored."""
+    from .conftest import FIXTURES
+
+    aioclient_mock.get(FEED_URL, text=(FIXTURES / "feed.xml").read_text())
+    expired = (FIXTURES / "cap_riga_fog.xml").read_text().replace("2126-", "2020-")
+    aioclient_mock.get("https://feeds.test/cap/riga-fog", text=expired)
+
+    api = MeteoAlarmApi(async_get_clientsession(hass), "latvia", "Riga", "en")
+    alerts = await api.get_alerts()
+
+    assert api.resolved_area == "Riga"
+    assert alerts == []
+
+
 async def test_no_alerts_for_unknown_region(hass, mock_feed):
     """An unknown region yields no alerts instead of a false match."""
     api = MeteoAlarmApi(async_get_clientsession(hass), "latvia", "Atlantis", "en")

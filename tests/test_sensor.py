@@ -60,7 +60,7 @@ async def test_entity_states(hass, mock_feed):
     assert onset.state == "2026-07-12T03:00:00+00:00"
 
     expires = hass.states.get(_entity_id(hass, entry, "expires"))
-    assert expires.state == "2026-07-13T03:00:00+00:00"
+    assert expires.state == "2126-07-13T03:00:00+00:00"
 
     warning = hass.states.get(_entity_id(hass, entry, "warning"))
     assert warning.state == "on"
