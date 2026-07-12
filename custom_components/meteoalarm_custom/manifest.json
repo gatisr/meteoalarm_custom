@@ -1,21 +1,14 @@
 {
   "domain": "meteoalarm_custom",
   "name": "MeteoAlarm Custom",
-  "after_dependencies": [
-    "http"
-  ],
-  "codeowners": [
-    "@gatisr"
-  ],
+  "after_dependencies": ["lovelace"],
+  "codeowners": ["@gatisr"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["http"],
   "documentation": "https://github.com/gatisr/meteoalarm_custom",
+  "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/gatisr/issues",
-  "requirements": [
-    "meteoalertapi==0.3.1",
-    "asyncio==3.4.3",
-    "aiofiles==24.1.0"
-  ],
-  "version": "0.4.0"
+  "issue_tracker": "https://github.com/gatisr/meteoalarm_custom/issues",
+  "requirements": [],
+  "version": "1.0.0"
 }

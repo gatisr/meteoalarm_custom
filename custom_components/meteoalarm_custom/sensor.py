@@ -1,140 +1,151 @@
-import aiofiles
-import logging
-import os
-import json
-from datetime import timedelta
+"""Sensor platform for the MeteoAlarm integration."""
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import generate_entity_id
-import asyncio
-from functools import partial
-from datetime import datetime, timedelta
 
-from .const import CONF_COUNTRY, CONF_PROVINCE, CONF_LANGUAGE, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
-from .const import ATTR_CATEGORY, ATTR_URGENCY, ATTR_SEVERITY, ATTR_CERTAINTY, ATTR_EFFECTIVE, ATTR_ONSET
-from .const import ATTRIBUTION, ENTITY_ID_FORMAT
-from .const import ATTR_EXPIRES, ATTR_SENDER_NAME, ATTR_DESCRIPTION, ATTR_WEB, ATTR_CONTACT, ATTR_AWARENESS_LEVEL, ATTR_AWARENESS_TYPE
+from .api import MeteoAlarmAlert, severity_rank
+from .const import (
+    ATTR_ALERTS,
+    ATTR_AREA,
+    ATTR_AWARENESS_LEVEL,
+    ATTR_AWARENESS_TYPE,
+    ATTR_CATEGORY,
+    ATTR_CERTAINTY,
+    ATTR_DESCRIPTION,
+    ATTR_EVENT,
+    ATTR_EXPIRES,
+    ATTR_HEADLINE,
+    ATTR_INSTRUCTION,
+    ATTR_ONSET,
+    ATTR_SENDER_NAME,
+    ATTR_SEVERITY,
+    ATTR_URGENCY,
+    SEVERITY_NONE,
+    SEVERITY_ORDER,
+)
+from .coordinator import MeteoAlarmConfigEntry, MeteoAlarmCoordinator
+from .entity import MeteoAlarmEntity
 
-from meteoalertapi import Meteoalert
 
-_LOGGER = logging.getLogger(__name__)
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: MeteoAlarmConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the MeteoAlarm sensors."""
+    coordinator = entry.runtime_data
+    async_add_entities(
+        [
+            MeteoAlarmAlertSensor(coordinator),
+            MeteoAlarmCountSensor(coordinator),
+            MeteoAlarmOnsetSensor(coordinator),
+            MeteoAlarmExpiresSensor(coordinator),
+        ]
+    )
 
-async def async_get_meteoalert_data(country, province, language):
-    """Asynchronous wrapper for Meteoalert.get_alert()"""
-    def get_alert(country, province, language):
-        meteoalert = Meteoalert(country, province, language)
-        return meteoalert.get_alert()
 
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, partial(get_alert, country, province, language))
+def _most_severe(alerts: list[MeteoAlarmAlert]) -> MeteoAlarmAlert | None:
+    if not alerts:
+        return None
+    return max(alerts, key=lambda alert: severity_rank(alert.severity))
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
-    config = entry.data
-    async_add_entities([MeteoAlarmSensor(hass, config)], True)
 
-class MeteoAlarmSensor(SensorEntity):
-    def __init__(self, hass: HomeAssistant, config: dict):
-        super().__init__()
-        self.hass = hass
-        self._country = config[CONF_COUNTRY]
-        self._province = config[CONF_PROVINCE]
-        self._language = config[CONF_LANGUAGE]
-        self._lang = self._language.split("-")[0]
-        self._update_interval = timedelta(minutes=config[CONF_UPDATE_INTERVAL])
-        self._attr_name = f"MeteoAlarm ({self._country}, {self._province})"  # Default name
-        # ToDo: use DEFAULT_UPDATE_INTERVAL if not provided
-        self._attr_unique_id = f"{self._country}_{self._province}_{self._language}"
-        self._data = None
-        if hasattr(hass, 'states') and callable(getattr(hass.states, 'async_available', None)):
-            self.entity_id = generate_entity_id(ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass)
-        else:
-            self.entity_id = f"{ENTITY_ID_FORMAT.format(self._attr_unique_id)}"
-        self._translations = {}
-        self._last_update = None
+class MeteoAlarmAlertSensor(MeteoAlarmEntity, SensorEntity):
+    """Highest severity of the currently active alerts."""
 
-    async def async_added_to_hass(self):
-        """Load translations when added to hass."""
-        await self.load_translations()
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = SEVERITY_ORDER
 
-    async def load_translations(self):
-        """Load translations asynchronously."""
-        lang_file = f"{os.path.dirname(__file__)}/translations/{self._lang}.json"
-        try:
-            async with aiofiles.open(lang_file, mode='r') as file:
-                content = await file.read()
-                self._translations = json.loads(content)
-        except Exception as err:
-            _LOGGER.error(f"Error loading translations: {err}")
-            self._translations = {}
+    def __init__(self, coordinator: MeteoAlarmCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, "alert")
 
     @property
-    def name(self):
-        try:
-            return self._translations["entity"]["sensor"]["name"]["name"].format(
-                country=self._country, province=self._province
+    def native_value(self) -> str:
+        """Return the highest severity among active alerts."""
+        alert = _most_severe(self.alerts)
+        return alert.severity if alert else SEVERITY_NONE
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the full alert list plus flat details of the worst alert."""
+        attributes: dict[str, Any] = {
+            ATTR_ALERTS: [alert.as_dict() for alert in self.alerts],
+            ATTR_AREA: self.coordinator.api.resolved_area,
+        }
+        if alert := _most_severe(self.alerts):
+            attributes.update(
+                {
+                    ATTR_EVENT: alert.event,
+                    ATTR_HEADLINE: alert.headline,
+                    ATTR_SEVERITY: alert.severity,
+                    ATTR_AWARENESS_LEVEL: alert.awareness_level,
+                    ATTR_AWARENESS_TYPE: alert.awareness_type,
+                    ATTR_CATEGORY: alert.category,
+                    ATTR_URGENCY: alert.urgency,
+                    ATTR_CERTAINTY: alert.certainty,
+                    ATTR_ONSET: alert.onset.isoformat() if alert.onset else None,
+                    ATTR_EXPIRES: alert.expires.isoformat() if alert.expires else None,
+                    ATTR_SENDER_NAME: alert.sender_name,
+                    ATTR_DESCRIPTION: alert.description,
+                    ATTR_INSTRUCTION: alert.instruction,
+                }
             )
-        except (KeyError, AttributeError):
-            _LOGGER.warning("Translation for name not found, using default")
-            return self._attr_name
+        return attributes
+
+
+class MeteoAlarmCountSensor(MeteoAlarmEntity, SensorEntity):
+    """Number of currently active alerts."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: MeteoAlarmCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, "active_alerts")
 
     @property
-    def state(self) -> str | None:
-        _LOGGER.debug(f"Entering state property, _data: {self._data}") # Debug statement
+    def native_value(self) -> int:
+        """Return the number of active alerts."""
+        return len(self.alerts)
 
-        if self._data and "awareness_level" in self._data:
-            awareness_level_parts = self._data["awareness_level"].lower().split(";")
-            if len(awareness_level_parts) >= 2:
-                awareness_color = awareness_level_parts[1].strip()
-                _LOGGER.debug(f"awareness_color: {awareness_color}") # Debug statement
 
-                if awareness_color == "yellow":
-                    return "moderate"
-                elif awareness_color == "orange":
-                    return "severe"
-                elif awareness_color == "red":
-                    return "extreme"
+class MeteoAlarmOnsetSensor(MeteoAlarmEntity, SensorEntity):
+    """Earliest start time of the currently active alerts."""
 
-        _LOGGER.debug("State is None") # Debug statement
-        return None 
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator: MeteoAlarmCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, "onset")
 
     @property
-    def extra_state_attributes(self):
-        if self._data:
-            attributes = {}
-            for attr_key in [ATTR_CATEGORY, ATTR_URGENCY, ATTR_SEVERITY, ATTR_CERTAINTY, ATTR_AWARENESS_LEVEL, ATTR_AWARENESS_TYPE, ATTR_EXPIRES, ATTR_SENDER_NAME, ATTR_DESCRIPTION, ATTR_WEB, ATTR_CONTACT, ATTR_EFFECTIVE, ATTR_ONSET]:
-                original_value = self._data.get(attr_key)
-                if original_value:
-                    try:
-                        translated_name = self._translations["entity"]["sensor"][attr_key]["name"]
-                    except KeyError:
-                        translated_name = attr_key
-                    attributes[translated_name] = original_value
-            return attributes
-        return {}
+    def native_value(self) -> datetime | None:
+        """Return the earliest onset."""
+        onsets = [alert.onset for alert in self.alerts if alert.onset]
+        return min(onsets) if onsets else None
+
+
+class MeteoAlarmExpiresSensor(MeteoAlarmEntity, SensorEntity):
+    """Latest end time of the currently active alerts."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator: MeteoAlarmCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, "expires")
 
     @property
-    def attribution(self):
-        return ATTRIBUTION
-
-    def _get_update_interval(self):
-        """Get the update interval, ensuring it's valid and not smaller than 1 minute."""
-        if self._update_interval < timedelta(minutes=1):
-            _LOGGER.warning("Invalid update interval. Using DEFAULT_UPDATE_INTERVAL.")
-            return timedelta(minutes=DEFAULT_UPDATE_INTERVAL)
-        return self._update_interval
-
-    async def async_update(self):
-        """Update sensor state."""
-        now = datetime.now()
-        if self._last_update is None or now - self._last_update >= self._get_update_interval():
-            try:
-                self._data = await async_get_meteoalert_data(self._country, self._province, self._language)
-                self._last_update = now
-            except Exception as err:
-                _LOGGER.error("Error updating MeteoAlarm sensor: %s", err)
-                self._data = None
-
-            self.async_write_ha_state()
+    def native_value(self) -> datetime | None:
+        """Return the latest expiry."""
+        expires = [alert.expires for alert in self.alerts if alert.expires]
+        return max(expires) if expires else None

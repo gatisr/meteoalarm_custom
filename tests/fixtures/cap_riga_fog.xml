@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>LV.RIGA.FOG.1</identifier>
+  <sender>http://www.lvgmc.lv</sender>
+  <sent>2026-07-12T01:00:00+03:00</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <scope>Public</scope>
+  <info>
+    <language>en-GB</language>
+    <category>Met</category>
+    <event>Yellow Fog Warning</event>
+    <urgency>Expected</urgency>
+    <severity>Moderate</severity>
+    <certainty>Likely</certainty>
+    <effective>2026-07-12T01:00:00+03:00</effective>
+    <onset>2026-07-12T01:00:00+03:00</onset>
+    <expires>2026-07-12T10:00:00+03:00</expires>
+    <senderName>Latvian Environment, Geology and Meteorology Centre</senderName>
+    <description>Fog in places, visibility 200-500 m.</description>
+    <web>https://bridinajumi.meteo.lv/</web>
+    <contact>LVGMC</contact>
+    <parameter>
+      <valueName>awareness_level</valueName>
+      <value>2; yellow; Moderate</value>
+    </parameter>
+    <parameter>
+      <valueName>awareness_type</valueName>
+      <value>7; Fog</value>
+    </parameter>
+    <area>
+      <areaDesc>Riga</areaDesc>
+    </area>
+  </info>
+  <info>
+    <language>lv</language>
+    <category>Met</category>
+    <event>Dzeltenais miglas brīdinājums</event>
+    <urgency>Expected</urgency>
+    <severity>Moderate</severity>
+    <certainty>Likely</certainty>
+    <effective>2026-07-12T01:00:00+03:00</effective>
+    <onset>2026-07-12T01:00:00+03:00</onset>
+    <expires>2026-07-12T10:00:00+03:00</expires>
+    <senderName>Latvijas Vides, ģeoloģijas un meteoroloģijas centrs</senderName>
+    <description>Vietām migla, redzamība 200-500 m.</description>
+    <web>https://bridinajumi.meteo.lv/</web>
+    <contact>LVĢMC</contact>
+    <parameter>
+      <valueName>awareness_level</valueName>
+      <value>2; yellow; Moderate</value>
+    </parameter>
+    <parameter>
+      <valueName>awareness_type</valueName>
+      <value>7; Fog</value>
+    </parameter>
+    <area>
+      <areaDesc>Rīga</areaDesc>
+    </area>
+  </info>
+</alert>

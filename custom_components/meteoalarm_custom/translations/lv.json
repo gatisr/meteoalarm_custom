@@ -1,76 +1,76 @@
 {
-  "title": "MeteoAlarm",
   "config": {
     "step": {
       "user": {
+        "title": "MeteoAlarm valsts",
+        "description": "Izvēlies valsti, kuras laikapstākļu brīdinājumiem sekot. Vari arī ierakstīt pielāgotu plūsmas apzīmējumu tieši tā, kā tas parādās feeds.meteoalarm.org adresē (piemēram, `latvia`).",
         "data": {
-          "country": "Valsts",
-          "province": "Pasta indekss vai pilsēta",
-          "language": "Valoda",
-          "update_interval": "Atjaunināšanas intervāls (minūtes)"
+          "country": "Valsts"
+        }
+      },
+      "region": {
+        "title": "Reģions ({country})",
+        "description": "Izvēlies savu reģionu. Sarakstā ir tikai reģioni ar šobrīd aktīviem brīdinājumiem ({region_count} pašlaik) - ja tavējā nav, ieraksti tā nosaukumu tieši tā, kā to publicē MeteoAlarm (piemēram, `Riga` vai `Smiltene municipality`).",
+        "data": {
+          "province": "Reģions",
+          "language": "Brīdinājumu tekstu valoda",
+          "update_interval": "Atjaunināšanas intervāls"
+        },
+        "data_description": {
+          "language": "Pieejamas tikai valodas, kurās publicē attiecīgās valsts meteodienests; citas izvēles atgriež tekstus angliski."
         }
       }
     },
     "error": {
-      "invalid_country": "Nederīga valsts",
-      "invalid_province": "Nederīga province"
+      "invalid_country": "Šai valstij nav MeteoAlarm plūsmas. Izmanto precīzu apzīmējumu no feeds.meteoalarm.org adreses.",
+      "invalid_province": "Ievadi reģiona nosaukumu.",
+      "cannot_connect": "Neizdevās sasniegt feeds.meteoalarm.org, lai pārbaudītu pielāgoto valsti."
     },
     "abort": {
-      "single_instance_allowed": "Atļauts tikai viens integrācijas eksemplārs.",
-      "already_configured": "Šī atrašanās vieta jau ir konfigurēta."
+      "already_configured": "Šis reģions jau ir konfigurēts."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MeteoAlarm iestatījumi",
+        "data": {
+          "language": "Brīdinājumu tekstu valoda",
+          "update_interval": "Atjaunināšanas intervāls"
+        }
+      }
     }
   },
   "entity": {
     "sensor": {
-      "name": {
-        "name": "MeteoAlarm ({country}, {province})"
-      },
-      "status": {
+      "alert": {
+        "name": "Brīdinājuma līmenis",
         "state": {
+          "none": "Nav brīdinājumu",
+          "minor": "Neliels brīdinājums",
           "moderate": "Mērens brīdinājums",
           "severe": "Augsts brīdinājums",
-          "unavailable": "Nav brīdinājumu",
           "extreme": "Ekstremāls brīdinājums"
         }
       },
-      "category": {
-        "name": "Kategorija"
-      },
-      "urgency": {
-        "name": "Steidzamība"
-      },
-      "severity": {
-        "name": "Bīstamība"
-      },
-      "certainty": {
-        "name": "Pārliecība"
-      },
-      "effective": {
-        "name": "Spēkā stāšanās laiks"
+      "active_alerts": {
+        "name": "Aktīvie brīdinājumi"
       },
       "onset": {
-        "name": "Sākuma laiks"
+        "name": "Brīdinājumu sākums"
       },
       "expires": {
-        "name": "Beigu laiks"
-      },
-      "sender_name": {
-        "name": "Sūtītāja nosaukums"
-      },
-      "description": {
-        "name": "Apraksts"
-      },
-      "web": {
-        "name": "Tīmeklis"
-      },
-      "contact": {
-        "name": "Kontakti"
-      },
-      "awareness_level": {
-        "name": "Informētības līmenis"
-      },
-      "awareness_type": {
-        "name": "Informētības veids"
+        "name": "Brīdinājumu beigas"
+      }
+    },
+    "binary_sensor": {
+      "warning": {
+        "name": "Aktīvs brīdinājums"
+      }
+    },
+    "event": {
+      "alert_event": {
+        "name": "Jauns brīdinājums"
       }
     }
   }

@@ -1,87 +1,118 @@
 # MeteoAlarm Custom Integration for Home Assistant
 
-This is a custom integration for [Home Assistant](https://www.home-assistant.io/) that provides a sensor for retrieving weather alerts from the [MeteoAlarm](https://meteoalarm.org/) service. Developed because default integration didn't work as supposed for me.
+A custom integration for [Home Assistant](https://www.home-assistant.io/) that follows the official [MeteoAlarm](https://meteoalarm.org/) weather warning feeds for the regions you choose - with a friendly setup flow, multiple entities per region, and a bundled Lovelace card.
 
 ## Features
 
-- Configurable sensor for any supported country, province, and language
-- Retrieves alert data from the MeteoAlarm API
-- Provides alert level and additional alert attributes
-- Handles cases when no alerts are available
+- **Guided setup** - pick the country from a dropdown, then pick your region from the list of regions in the country feed (free-text entry is also allowed, e.g. on calm days when the feed lists nothing). Custom country slugs are accepted so future feed additions keep working.
+- **All active warnings** - the integration talks to the MeteoAlarm feeds directly (no extra Python dependencies) and returns *every* active warning for the region, not just the first one, in your preferred language.
+- **Entities per region** (grouped under one device):
+  - `sensor.<region>_warning_level` - enum: `none` / `minor` / `moderate` / `severe` / `extreme` (translated in the UI). The `alerts` attribute holds the full list of active warnings; the most severe one is also exposed as flat attributes (`event`, `headline`, `onset`, `expires`, `description`, ...).
+  - `sensor.<region>_active_warnings` - number of active warnings.
+  - `sensor.<region>_warnings_start` / `sensor.<region>_warnings_end` - timestamps of the earliest start and latest end of the active warnings.
+  - `binary_sensor.<region>_warning_active` - on while any warning is active (safety device class).
+  - `event.<region>_new_warning` - fires whenever a previously unseen warning appears; the event data contains the whole alert. Great for notifications.
+- **Options flow** - change the language and update interval any time from the integration's *Configure* button (the entry reloads automatically).
+- **Diagnostics** - download a JSON snapshot of the entry and current alerts from the integration page.
+- **Bundled Lovelace card** - `custom:meteoalarm-card` is served by the integration and registered as a dashboard resource automatically (storage-mode dashboards). No separate HACS frontend install needed.
 
 ## Installation
 
 ### HACS (Recommended)
 
-1. Ensure that [HACS](https://hacs.xyz/) is installed in your Home Assistant instance.
-2. In the HACS panel, select "Integrations".
-3. Click on the three dots in the top right corner and choose "Custom repositories".
-4. Enter `https://github.com/gatisr/meteoalarm_custom` as the repository URL.
-5. Select the category "Integration".
-6. Click "Add".
-7. Search for "MeteoAlarm" and install it.
+1. Ensure that [HACS](https://hacs.xyz/) is installed.
+2. HACS → three dots → *Custom repositories* → add `https://github.com/gatisr/meteoalarm_custom` as an *Integration*.
+3. Search for "MeteoAlarm Custom", install it, and restart Home Assistant.
 
 ### Manual Installation
 
-1. Download the `meteoalarm_custom` directory from this repository.
-2. Place the `meteoalarm_custom` directory inside the `custom_components` directory of your Home Assistant configuration folder.
-3. Restart your Home Assistant instance.
+1. Copy `custom_components/meteoalarm_custom` into your Home Assistant `custom_components` directory.
+2. Restart Home Assistant.
 
 ## Configuration
 
-1. After installation, go to the Home Assistant UI and navigate to "Configuration" -> "Integrations".
-2. Click on the "+" button and search for "MeteoAlarm Custom".
-3. Enter the required configuration details:
-   - **Country**: The country code for the desired location (e.g., "latvia").
-   - **Province**: The province code for the desired location (e.g., "LV001").
-   - **Language**: The language code for the alerts (e.g., "en").
-4. Click on "Submit" to complete the configuration.
+Settings → Devices & Services → *Add Integration* → **MeteoAlarm Custom**:
 
-## Sensor
+1. **Country** - pick from the list, or type a custom feed slug exactly as it appears in the `https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-<slug>` URL (e.g. `latvia`, `united-kingdom`).
+2. **Region** - pick from the regions currently present in the feed, or type the region name exactly as MeteoAlarm publishes it (e.g. `Riga`, `Smiltene municipality`). Marine areas with an EMMA geocode (e.g. `LV803`) also work.
+3. **Language** - ISO code of the warning texts. Only languages published by that country's weather service are available; anything else falls back to English.
+4. **Update interval** - polling interval in minutes.
 
-The integration provides a sensor entity with the following details:
+Repeat for as many regions as you like - each region becomes its own entry and device. Language and interval can be changed later via *Configure*.
 
-- **Entity ID**: `sensor.meteoalarm_<province>`
-- **State**: The current alert level (e.g., "2; yellow; Moderate") or "No Alert" if no alerts are available.
-- **Attributes**:
-  - `category`: The category of the alert.
-  - `urgency`: The urgency of the alert.
-  - `severity`: The severity of the alert.
-  - `certainty`: The certainty of the alert.
-  - `effective`: The effective time of the alert.
-  - `onset`: The onset time of the alert.
-  - `expires`: The expiration time of the alert.
-  - `senderName`: The name of the sender of the alert.
-  - `description`: The description of the alert.
-  - `web`: The web URL for more information about the alert.
-  - `contact`: Contact information for the alert.
-  - `awareness_level`: The awareness level of the alert.
-  - `awareness_type`: The awareness type of the alert.
+## Lovelace card
 
-## Updating
+The card ships with the integration. On storage-mode dashboards the resource is registered automatically - just add a card:
 
-### HACS
+```yaml
+type: custom:meteoalarm-card
+entity: sensor.meteoalarm_riga_warning_level
+# optional:
+# title: Rīga
+# show_description: true
+# show_instruction: false
+# compact: false
+```
 
-If you have installed the integration via HACS, you can easily update it by navigating to the HACS panel, selecting the "Integrations" tab, and clicking on the "Update" button for the MeteoAlarm Custom integration.
+The card shows the region's status with severity colors and one row per active warning (icon by warning type, time range, description). It has a visual editor, so all options can be set from the UI.
 
-### Manual Update
+On YAML-mode dashboards add the resource manually:
 
-To manually update the integration, simply download the latest version of the `meteoalarm_custom` directory from this repository and replace the existing directory in your Home Assistant `custom_components` folder. Restart your Home Assistant instance to complete the update.
+```yaml
+resources:
+  - url: /meteoalarm_custom/meteoalarm-card.js
+    type: module
+```
+
+## Automation examples
+
+Notify when a new warning appears:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: event.meteoalarm_riga_new_warning
+actions:
+  - action: notify.mobile_app_phone
+    data:
+      title: "{{ trigger.to_state.attributes.event }}"
+      message: "{{ trigger.to_state.attributes.description }}"
+```
+
+Do something while any warning is active:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.meteoalarm_riga_warning_active
+    to: "on"
+```
+
+## Development
+
+```bash
+# integration tests
+python3 -m venv .venv && .venv/bin/pip install -r requirements_test.txt
+.venv/bin/pytest
+
+# live smoke test against the real feed
+.venv/bin/python tests_manual/test.py latvia "Riga" lv
+
+# Lovelace card (sources in card/, bundle committed to custom_components/.../frontend/)
+cd card && npm install && npm run build
+```
 
 ## Troubleshooting
 
-If you encounter any issues with the integration, please check the Home Assistant logs for error messages. You can also enable debug logging by adding the following lines to your Home Assistant `configuration.yaml` file:
+Enable debug logging:
 
 ```yaml
 logger:
-  default: info
   logs:
     custom_components.meteoalarm_custom: debug
 ```
 
-## Contributing
-
-Contributions to this project are welcome! If you find any issues or have suggestions for improvements, please open an issue or submit a pull request on the [GitHub repository](https://github.com/gatisr/meteoalarm_custom)
+The integration page also offers a *Download diagnostics* button with the raw alert data.
 
 ## License
 
@@ -89,7 +120,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Credits
 
-This integration was developed by [@gatisr](https://github.com/gatisr/) and is based on the [meteoalert-api](https://github.com/rolfberkenbosch/meteoalert-api) python wraaper for the MeteoAlarm API.
+Developed by [@gatisr](https://github.com/gatisr/). Data provided by [MeteoAlarm](https://meteoalarm.org/); see their terms for redistribution requirements.
 
 ## Disclaimer
 

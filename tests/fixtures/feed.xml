@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">
+  <id>tag:meteoalarm.org,2021-02-19:LV</id>
+  <title>MeteoAlarm - Alerting Europe for Extreme Weather</title>
+  <updated>2026-07-12T11:05:57Z</updated>
+  <entry>
+    <cap:areaDesc>Riga</cap:areaDesc>
+    <cap:event>Yellow Fog Warning</cap:event>
+    <cap:severity>Moderate</cap:severity>
+    <cap:onset>2026-07-12T01:00:00+00:00</cap:onset>
+    <cap:expires>2026-07-12T10:00:00+00:00</cap:expires>
+    <link type="application/cap+xml" href="https://feeds.test/cap/riga-fog"/>
+    <id>riga-fog</id>
+    <title>Yellow Fog Warning issued for Latvia - Riga</title>
+    <updated>2026-07-12T01:00:00Z</updated>
+  </entry>
+  <entry>
+    <cap:areaDesc>Southern Gulf of Riga</cap:areaDesc>
+    <cap:geocode>
+      <valueName>EMMA_ID</valueName>
+      <value>LV806</value>
+    </cap:geocode>
+    <cap:event>Orange Wind Warning</cap:event>
+    <cap:severity>Severe</cap:severity>
+    <link type="application/cap+xml" href="https://feeds.test/cap/gulf-wind"/>
+    <id>gulf-wind</id>
+    <title>Orange Wind Warning issued for Latvia - Southern Gulf of Riga</title>
+    <updated>2026-07-12T01:00:00Z</updated>
+  </entry>
+  <entry>
+    <cap:areaDesc>Smiltene municipality</cap:areaDesc>
+    <cap:event>Yellow Thunderstorm Warning</cap:event>
+    <cap:severity>Moderate</cap:severity>
+    <link type="application/cap+xml" href="https://feeds.test/cap/smiltene-storm"/>
+    <id>smiltene-storm</id>
+    <title>Yellow Thunderstorm Warning issued for Latvia - Smiltene municipality</title>
+    <updated>2026-07-12T01:00:00Z</updated>
+  </entry>
+  <entry>
+    <cap:areaDesc>Smiltene municipality</cap:areaDesc>
+    <cap:event>Red Rain Warning</cap:event>
+    <cap:severity>Extreme</cap:severity>
+    <link type="application/cap+xml" href="https://feeds.test/cap/smiltene-rain"/>
+    <id>smiltene-rain</id>
+    <title>Red Rain Warning issued for Latvia - Smiltene municipality</title>
+    <updated>2026-07-12T01:00:00Z</updated>
+  </entry>
+</feed>

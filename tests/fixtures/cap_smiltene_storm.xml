@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>LV.SMILTENE.STORM.1</identifier>
+  <sender>http://www.lvgmc.lv</sender>
+  <sent>2026-07-12T01:00:00+03:00</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <scope>Public</scope>
+  <info>
+    <language>en-GB</language>
+    <category>Met</category>
+    <event>Yellow Thunderstorm Warning</event>
+    <urgency>Immediate</urgency>
+    <severity>Moderate</severity>
+    <certainty>Likely</certainty>
+    <effective>2026-07-12T13:00:00+03:00</effective>
+    <onset>2026-07-12T13:00:00+03:00</onset>
+    <expires>2026-07-12T23:00:00+03:00</expires>
+    <senderName>Latvian Environment, Geology and Meteorology Centre</senderName>
+    <description>Thunderstorms in the afternoon.</description>
+    <parameter>
+      <valueName>awareness_level</valueName>
+      <value>2; yellow; Moderate</value>
+    </parameter>
+    <parameter>
+      <valueName>awareness_type</valueName>
+      <value>3; Thunderstorm</value>
+    </parameter>
+    <area>
+      <areaDesc>Smiltene municipality</areaDesc>
+    </area>
+  </info>
+</alert>

@@ -1,5 +1,5 @@
 {
-    "name": "MeteoAlarm",
-    "render_readme": true,
-    "domains": ["sensor"]
-  }
+  "name": "MeteoAlarm Custom",
+  "render_readme": true,
+  "homeassistant": "2025.8.0"
+}

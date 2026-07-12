@@ -1,2 +1,5 @@
 .pytest_cache
 __pycache__
+.venv
+.claude/
+card/node_modules
