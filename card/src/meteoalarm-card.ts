@@ -2,7 +2,15 @@ import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 import './editor';
-import { CARD_TYPE, CARD_VERSION, EDITOR_TYPE, SEVERITY_COLORS, iconForAlert } from './const';
+import {
+  CARD_TYPE,
+  CARD_VERSION,
+  EDITOR_TYPE,
+  LONG_TEXT,
+  SEVERITY_COLORS,
+  iconForAlert,
+} from './const';
+import { formatTime } from './format';
 import { localize } from './localize';
 import type { AlertData, HassEntity, HomeAssistant, MeteoAlarmCardConfig } from './types';
 
@@ -20,13 +28,15 @@ declare global {
 }
 
 window.customCards = window.customCards ?? [];
-window.customCards.push({
-  type: CARD_TYPE,
-  name: 'MeteoAlarm Card',
-  description: 'Shows active MeteoAlarm weather warnings for a region.',
-  preview: true,
-  documentationURL: 'https://github.com/gatisr/meteoalarm_custom',
-});
+if (!window.customCards.some((card) => card.type === CARD_TYPE)) {
+  window.customCards.push({
+    type: CARD_TYPE,
+    name: 'MeteoAlarm Card',
+    description: 'Shows active MeteoAlarm weather warnings for a region.',
+    preview: true,
+    documentationURL: 'https://github.com/gatisr/meteoalarm_custom',
+  });
+}
 
 @customElement(CARD_TYPE)
 export class MeteoAlarmCard extends LitElement {
@@ -39,10 +49,19 @@ export class MeteoAlarmCard extends LitElement {
   }
 
   public static getStubConfig(hass: HomeAssistant): Partial<MeteoAlarmCardConfig> {
+    // The warning level sensor: an "enum" sensor exposing the alerts list.
     const entity = Object.values(hass.states).find(
-      (s) => s.entity_id.startsWith('sensor.') && Array.isArray(s.attributes.alerts)
+      (s) =>
+        s.entity_id.startsWith('sensor.') &&
+        s.attributes.device_class === 'enum' &&
+        Array.isArray(s.attributes.alerts)
     );
     return { entity: entity?.entity_id };
+  }
+
+  // Sizing hints for sections dashboards.
+  public getGridOptions(): Record<string, unknown> {
+    return { columns: 12, min_columns: 6, rows: 'auto' };
   }
 
   public setConfig(config: MeteoAlarmCardConfig): void {
@@ -83,20 +102,7 @@ export class MeteoAlarmCard extends LitElement {
   }
 
   private _formatTime(iso: string | null): string {
-    if (!iso) {
-      return '';
-    }
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) {
-      return '';
-    }
-    const lang = this.hass?.locale?.language ?? 'en';
-    const sameDay = new Date().toDateString() === date.toDateString();
-    return new Intl.DateTimeFormat(lang, {
-      ...(sameDay ? {} : { day: 'numeric', month: 'short' }),
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
+    return formatTime(iso, this.hass);
   }
 
   private _timeRange(alert: AlertData): string {
@@ -123,8 +129,14 @@ export class MeteoAlarmCard extends LitElement {
       return this._warning(`${localize(this.hass, 'entity_missing')} ${this._config.entity}`);
     }
 
-    const alerts = entity.attributes.alerts ?? [];
-    const severity = entity.state in SEVERITY_COLORS ? entity.state : 'none';
+    if (entity.state === 'unavailable' || entity.state === 'unknown') {
+      return this._warning(localize(this.hass, 'entity_unavailable'));
+    }
+    if (!Array.isArray(entity.attributes.alerts)) {
+      return this._warning(localize(this.hass, 'entity_wrong'));
+    }
+    const alerts = entity.attributes.alerts;
+    const severity = Object.hasOwn(SEVERITY_COLORS, entity.state) ? entity.state : 'none';
     const color = SEVERITY_COLORS[severity];
     const stateLabel = this.hass?.formatEntityState?.(entity) ?? entity.state;
 
@@ -135,7 +147,7 @@ export class MeteoAlarmCard extends LitElement {
             icon=${alerts.length ? 'mdi:alert-decagram' : 'mdi:shield-check'}
           ></ha-icon>
           <div class="name">${this._title(entity)}</div>
-          <div class="badge" style="background: ${color}">${stateLabel}</div>
+          <div class="badge ${severity}" style="background: ${color}">${stateLabel}</div>
         </div>
         ${alerts.length === 0
           ? html`<div class="calm">${localize(this.hass, 'no_warnings')}</div>`
@@ -149,18 +161,31 @@ export class MeteoAlarmCard extends LitElement {
     const compact = this._config?.compact ?? false;
     return html`
       <div class="alert" style="border-color: ${color}">
-        <ha-icon icon=${iconForAlert(alert.awareness_type, alert.event)} style="color: ${color}"></ha-icon>
+        <ha-icon aria-hidden="true" icon=${iconForAlert(alert.awareness_type, alert.event)} style="color: ${color}"></ha-icon>
         <div class="alert-body">
           <div class="event">${alert.event ?? alert.headline ?? ''}</div>
           <div class="time">${this._timeRange(alert)}</div>
-          ${!compact && this._config?.show_description && alert.description
-            ? html`<div class="description">${alert.description}</div>`
-            : nothing}
-          ${!compact && this._config?.show_instruction && alert.instruction
-            ? html`<div class="instruction">${alert.instruction}</div>`
-            : nothing}
+          ${compact ? nothing : this._renderTexts(alert)}
         </div>
       </div>
+    `;
+  }
+
+  // The instruction stays visible; only a long description collapses.
+  private _renderTexts(alert: AlertData) {
+    const description = this._config?.show_description ? alert.description : null;
+    const instruction = this._config?.show_instruction ? alert.instruction : null;
+    const long = (description?.length ?? 0) > LONG_TEXT;
+    return html`
+      ${description
+        ? long
+          ? html`<details>
+              <summary>${localize(this.hass, 'show_details')}</summary>
+              <div class="description">${description}</div>
+            </details>`
+          : html`<div class="description">${description}</div>`
+        : nothing}
+      ${instruction ? html`<div class="instruction">${instruction}</div>` : nothing}
     `;
   }
 
@@ -190,6 +215,8 @@ export class MeteoAlarmCard extends LitElement {
       white-space: nowrap;
     }
     .badge {
+      flex-shrink: 0;
+      white-space: nowrap;
       color: #fff;
       border-radius: 12px;
       padding: 3px 10px;
@@ -197,6 +224,10 @@ export class MeteoAlarmCard extends LitElement {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.03em;
+    }
+    /* White text is unreadable on the yellow. */
+    .badge.moderate {
+      color: #000;
     }
     .calm {
       color: var(--secondary-text-color);
@@ -221,6 +252,7 @@ export class MeteoAlarmCard extends LitElement {
       min-width: 0;
     }
     .event {
+      overflow-wrap: anywhere;
       font-weight: 500;
     }
     .time {
@@ -233,10 +265,17 @@ export class MeteoAlarmCard extends LitElement {
       font-size: 0.9rem;
       margin-top: 6px;
       white-space: pre-line;
+      overflow-wrap: anywhere;
     }
     .instruction {
       color: var(--secondary-text-color);
       font-style: italic;
+    }
+    summary {
+      cursor: pointer;
+      color: var(--primary-color);
+      font-size: 0.85rem;
+      margin-top: 6px;
     }
   `;
 }

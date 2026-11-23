@@ -19,6 +19,20 @@
         "data_description": {
           "language": "Pieejamas tikai valodas, kurās publicē attiecīgās valsts meteodienests; citas izvēles atgriež tekstus angliski."
         }
+      },
+      "reconfigure": {
+        "title": "Mainīt valsti",
+        "description": "Izvēlies šī ieraksta valsti. Reģionu izvēlēsies nākamajā solī.",
+        "data": {
+          "country": "Valsts"
+        }
+      },
+      "reconfigure_region": {
+        "title": "Reģions ({country})",
+        "description": "Izvēlies jauno reģionu. Sarakstā ir līdz šim plūsmā redzētie reģioni ({region_count}); ja tavējā nav, ieraksti tā nosaukumu tieši tā, kā to publicē MeteoAlarm.",
+        "data": {
+          "province": "Reģions"
+        }
       }
     },
     "error": {
@@ -27,7 +41,8 @@
       "cannot_connect": "Neizdevās sasniegt feeds.meteoalarm.org, lai pārbaudītu pielāgoto valsti."
     },
     "abort": {
-      "already_configured": "Šis reģions jau ir konfigurēts."
+      "already_configured": "Šis reģions jau ir konfigurēts.",
+      "reconfigure_successful": "Ieraksts atjaunināts."
     }
   },
   "options": {
@@ -37,6 +52,10 @@
         "data": {
           "language": "Brīdinājumu tekstu valoda",
           "update_interval": "Atjaunināšanas intervāls"
+        },
+        "data_description": {
+          "language": "Pieejamas tikai valodas, kurās publicē attiecīgās valsts meteodienests; citas izvēles atgriež tekstus angliski.",
+          "update_interval": "Minūtes starp atjauninājumiem. Brīdinājumi tik un tā pazūd tieši to beigu brīdī."
         }
       }
     }
@@ -72,6 +91,12 @@
       "alert_event": {
         "name": "Jauns brīdinājums"
       }
+    }
+  },
+  "issues": {
+    "feed_unavailable": {
+      "title": "MeteoAlarm plūsma valstij {country} nav atrasta",
+      "description": "MeteoAlarm plūsma valstij {country} (reģions {region}) vairs nepastāv (HTTP 404), tāpēc brīdinājumus nevar ielādēt. Iespējams, plūsma pārdēvēta vai izslēgta. Pārbaudi {url} un nomaini valsti ar *Pārkonfigurēt* integrācijā, vai dzēs šo ierakstu."
     }
   }
 }

@@ -1,4 +1,10 @@
-export const CARD_VERSION = '1.0.0';
+// Injected by build.mjs from the integration's manifest.json so the card's
+// version (and the cache-busting query string) never drift apart.
+declare const __CARD_VERSION__: string | undefined;
+export const CARD_VERSION: string =
+  typeof __CARD_VERSION__ !== 'undefined' ? __CARD_VERSION__ : 'dev';
+// Descriptions longer than this collapse behind "show details".
+export const LONG_TEXT = 200;
 export const CARD_TYPE = 'meteoalarm-card';
 export const EDITOR_TYPE = 'meteoalarm-card-editor';
 

@@ -1,18 +1,13 @@
-"""Async client for the MeteoAlarm feeds.
-
-Replaces the synchronous ``meteoalertapi`` library. Talks directly to the
-legacy ATOM feed (one entry per active warning) and the linked CAP documents
-(per-language texts), which allows returning every active alert for a region
-instead of only the first one, and enumerating the regions that currently
-appear in a country feed (used by the config flow dropdown).
-"""
+"""Async client for the MeteoAlarm legacy ATOM feed and its CAP documents."""
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 import logging
 import re
+import time
 import unicodedata
 import xml.etree.ElementTree as ET
 
@@ -31,6 +26,27 @@ _LOGGER = logging.getLogger(__name__)
 
 FEED_URL = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-{country}"
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20)
+MAX_CONCURRENT_CAP_REQUESTS = 5
+CACHE_TTL = 60.0  # seconds
+
+# CAP messages that must not be reported as real warnings.
+_IGNORED_CAP_STATUSES = {"test", "exercise", "draft"}
+_IGNORED_CAP_MSG_TYPES = {"cancel"}
+
+# Letters NFKD decomposition does not fold ("Łódź" -> "lodz").
+_TRANSLITERATION = str.maketrans(
+    {
+        "ł": "l",
+        "ø": "o",
+        "đ": "d",
+        "ð": "d",
+        "þ": "th",
+        "ß": "ss",
+        "æ": "ae",
+        "œ": "oe",
+        "ı": "i",
+    }
+)
 
 NS = {
     "atom": "http://www.w3.org/2005/Atom",
@@ -48,6 +64,10 @@ class MeteoAlarmConnectionError(MeteoAlarmError):
 
 class MeteoAlarmUnsupportedCountryError(MeteoAlarmError):
     """Raised when the country feed does not exist (HTTP 404)."""
+
+
+class MeteoAlarmParseError(MeteoAlarmError):
+    """Raised when a feed or CAP document is not valid XML."""
 
 
 @dataclass(slots=True)
@@ -116,12 +136,9 @@ class _FeedEntry:
 
 
 def _normalize(value: str) -> str:
-    """Lowercase and strip diacritics ("Preiļi" -> "preili").
-
-    The feeds publish region names without diacritics while users (and
-    entries created by old versions) often use the local spelling.
-    """
-    decomposed = unicodedata.normalize("NFKD", value.strip().lower())
+    """Lowercase and strip diacritics ("Preiļi" -> "preili"); feeds are ASCII."""
+    lowered = value.strip().lower().translate(_TRANSLITERATION)
+    decomposed = unicodedata.normalize("NFKD", lowered)
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
@@ -143,32 +160,43 @@ class MeteoAlarmApi:
         province: str,
         language: str = "en",
         geocode: str | None = None,
+        cache: FeedCache | None = None,
     ) -> None:
         self._session = session
+        self._cache = cache
         self._country = country.strip().lower()
         self._province = province.strip()
         self._language = (language or "en").strip()
         self._geocode = (geocode or "").strip() or None
         self.resolved_area: str | None = None
+        # Every region present in the last downloaded feed (matched or not).
+        self.feed_regions: list[MeteoAlarmRegion] = []
 
     async def get_alerts(self) -> list[MeteoAlarmAlert]:
         """Return all currently active alerts for the configured region."""
-        feed_xml = await _fetch(self._session, FEED_URL.format(country=self._country))
+        feed_xml = await _fetch(
+            self._session, FEED_URL.format(country=self._country), self._cache
+        )
         entries = _parse_feed_entries(feed_xml)
+        self.feed_regions = _regions_of(entries)
         matched = self._match_entries(entries)
         self.resolved_area = matched[0].area if matched else None
 
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_CAP_REQUESTS)
+
+        async def fetch_alert(entry: _FeedEntry) -> MeteoAlarmAlert | None:
+            async with semaphore:
+                cap_xml = await _fetch(self._session, entry.cap_url, self._cache)
+            return _parse_cap(cap_xml, self._language, entry.area)
+
+        # A failed CAP must fail the update; dropping it would look like an all-clear.
+        results = await asyncio.gather(
+            *(fetch_alert(entry) for entry in matched if entry.cap_url)
+        )
+
         now = dt_util.utcnow()
         alerts: list[MeteoAlarmAlert] = []
-        for entry in matched:
-            if not entry.cap_url:
-                continue
-            try:
-                cap_xml = await _fetch(self._session, entry.cap_url)
-                alert = _parse_cap(cap_xml, self._language, entry.area)
-            except MeteoAlarmError as err:
-                _LOGGER.warning("Failed to fetch CAP data from %s: %s", entry.cap_url, err)
-                continue
+        for alert in results:
             if alert is None:
                 continue
             # The feed keeps entries around for a while after they end;
@@ -181,12 +209,7 @@ class MeteoAlarmApi:
         return alerts
 
     def _match_entries(self, entries: list[_FeedEntry]) -> list[_FeedEntry]:
-        """Find the feed entries belonging to the configured region.
-
-        Exact areaDesc/geocode matches win. A token-based fallback keeps
-        entries created by older versions working (their stored province may
-        be a free-text value such as "Smiltene LV045").
-        """
+        """Match by name/geocode; a token fallback serves legacy "Smiltene LV045" values."""
         province_norm = _normalize(self._province)
 
         exact = [
@@ -203,64 +226,111 @@ class MeteoAlarmApi:
         if not tokens:
             return []
 
+        alpha_tokens = [t for t in tokens if t.isalpha()]
         candidates: list[_FeedEntry] = []
         for entry in entries:
             area_norm = _normalize(entry.area)
             if entry.geocode and entry.geocode.lower() in tokens:
                 candidates.append(entry)
                 continue
-            alpha_tokens = [t for t in tokens if t.isalpha()]
             if alpha_tokens and all(
                 re.search(rf"\b{re.escape(t)}\b", area_norm) for t in alpha_tokens
             ):
                 candidates.append(entry)
 
-        if not candidates:
-            return []
-        # Several distinct areas can match loose tokens ("Riga" also occurs in
-        # "Gulf of Riga East"); keep only the shortest matched area name.
-        best_area = min((c.area for c in candidates), key=len)
-        return [c for c in candidates if c.area == best_area]
+        if len({c.area for c in candidates}) <= 1 or not alpha_tokens:
+            return candidates
+
+        # Ambiguous: prefer exact name, then prefix; otherwise don't guess.
+        wanted = " ".join(alpha_tokens)
+        for narrow in (
+            lambda area: area == wanted,
+            lambda area: area.startswith(wanted),
+        ):
+            narrowed = [c for c in candidates if narrow(_normalize(c.area))]
+            if len({c.area for c in narrowed}) == 1:
+                return narrowed
+        _LOGGER.debug(
+            "Region %r is ambiguous in the %s feed; not guessing", self._province, self._country
+        )
+        return []
 
 
-async def async_get_regions(
-    session: aiohttp.ClientSession, country: str
-) -> list[MeteoAlarmRegion]:
-    """Return the regions currently present in a country feed.
-
-    The legacy feed only contains regions with active warnings, so on calm
-    days this list can be incomplete or empty - callers must allow free-text
-    region entry as well.
-    """
-    feed_xml = await _fetch(session, FEED_URL.format(country=country.strip().lower()))
+def _regions_of(entries: list[_FeedEntry]) -> list[MeteoAlarmRegion]:
     regions: dict[str, MeteoAlarmRegion] = {}
-    for entry in _parse_feed_entries(feed_xml):
+    for entry in entries:
         if entry.area not in regions:
             regions[entry.area] = MeteoAlarmRegion(name=entry.area, geocode=entry.geocode)
     return sorted(regions.values(), key=lambda r: r.name)
 
 
-async def _fetch(session: aiohttp.ClientSession, url: str) -> str:
+async def async_get_regions(
+    session: aiohttp.ClientSession, country: str, cache: FeedCache | None = None
+) -> list[MeteoAlarmRegion]:
+    """Return the regions in a country feed (only those with active warnings)."""
+    feed_xml = await _fetch(
+        session, FEED_URL.format(country=country.strip().lower()), cache
+    )
+    return _regions_of(_parse_feed_entries(feed_xml))
+
+
+class FeedCache:
+    """Share downloads between entries for a short TTL."""
+
+    def __init__(self, ttl: float | None = None) -> None:
+        self._ttl = CACHE_TTL if ttl is None else ttl
+        self._items: dict[str, tuple[float, bytes]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    async def fetch(self, session: aiohttp.ClientSession, url: str) -> bytes:
+        """Return the document at ``url``; concurrent callers share one request."""
+        async with self._locks.setdefault(url, asyncio.Lock()):
+            now = time.monotonic()
+            cached = self._items.get(url)
+            if cached and now - cached[0] < self._ttl:
+                return cached[1]
+            body = await _request(session, url)
+            self._items[url] = (now, body)
+        self._prune(now)
+        return body
+
+    def _prune(self, now: float) -> None:
+        self._items = {u: i for u, i in self._items.items() if now - i[0] < self._ttl}
+        idle = [u for u, lock in self._locks.items() if u not in self._items and not lock.locked()]
+        for url in idle:
+            del self._locks[url]
+
+
+async def _fetch(
+    session: aiohttp.ClientSession, url: str, cache: FeedCache | None = None
+) -> bytes:
+    if cache is not None:
+        return await cache.fetch(session, url)
+    return await _request(session, url)
+
+
+async def _request(session: aiohttp.ClientSession, url: str) -> bytes:
+    if not url.startswith("https://"):
+        raise MeteoAlarmConnectionError(f"Refusing non-HTTPS URL {url}")
     try:
         async with session.get(url, timeout=REQUEST_TIMEOUT) as response:
             if response.status == 404:
-                raise MeteoAlarmUnsupportedCountryError(
-                    f"Feed not found (404) for {url}"
-                )
+                raise MeteoAlarmUnsupportedCountryError(f"Feed not found (404) for {url}")
             if response.status != 200:
                 raise MeteoAlarmConnectionError(
                     f"Unexpected status {response.status} for {url}"
                 )
-            return await response.text()
+            # Bytes, so the XML declaration decides the encoding.
+            return await response.read()
     except (aiohttp.ClientError, TimeoutError) as err:
         raise MeteoAlarmConnectionError(f"Error fetching {url}: {err}") from err
 
 
-def _parse_feed_entries(feed_xml: str) -> list[_FeedEntry]:
+def _parse_feed_entries(feed_xml: bytes | str) -> list[_FeedEntry]:
     try:
         root = ET.fromstring(feed_xml)
     except ET.ParseError as err:
-        raise MeteoAlarmConnectionError(f"Invalid feed XML: {err}") from err
+        raise MeteoAlarmParseError(f"Invalid feed XML: {err}") from err
 
     entries: list[_FeedEntry] = []
     for entry in root.findall("atom:entry", NS):
@@ -298,11 +368,23 @@ def _parse_feed_entries(feed_xml: str) -> list[_FeedEntry]:
     return entries
 
 
-def _parse_cap(cap_xml: str, language: str, area: str) -> MeteoAlarmAlert | None:
+def _parse_cap(
+    cap_xml: bytes | str, language: str, area: str
+) -> MeteoAlarmAlert | None:
     try:
         root = ET.fromstring(cap_xml)
     except ET.ParseError as err:
-        raise MeteoAlarmConnectionError(f"Invalid CAP XML: {err}") from err
+        raise MeteoAlarmParseError(f"Invalid CAP XML: {err}") from err
+
+    def root_text(tag: str) -> str:
+        el = root.find(f"cap:{tag}", NS)
+        return (el.text or "").strip().lower() if el is not None else ""
+
+    if (
+        root_text("status") in _IGNORED_CAP_STATUSES
+        or root_text("msgType") in _IGNORED_CAP_MSG_TYPES
+    ):
+        return None
 
     infos = root.findall("cap:info", NS)
     if not infos:
@@ -318,7 +400,12 @@ def _parse_cap(cap_xml: str, language: str, area: str) -> MeteoAlarmAlert | None
 
     def when(tag: str) -> datetime | None:
         raw = text(tag)
-        return dt_util.parse_datetime(raw) if raw else None
+        parsed = dt_util.parse_datetime(raw) if raw else None
+        if parsed is not None and parsed.tzinfo is None:
+            # Senders occasionally omit the UTC offset; assume UTC rather than
+            # crash on naive/aware comparisons later.
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed
 
     parameters: dict[str, str] = {}
     for parameter in info.findall("cap:parameter", NS):

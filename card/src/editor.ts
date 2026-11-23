@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 import { EDITOR_TYPE } from './const';
+import { languageOf } from './localize';
 import type { HomeAssistant, MeteoAlarmCardConfig } from './types';
 
 const SCHEMA = [
@@ -9,7 +10,12 @@ const SCHEMA = [
     name: 'entity',
     required: true,
     selector: {
-      entity: { filter: [{ integration: 'meteoalarm_custom', domain: 'sensor' }] },
+      // Only the warning level sensor (enum) carries the alerts.
+      entity: {
+        filter: [
+          { integration: 'meteoalarm_custom', domain: 'sensor', device_class: 'enum' },
+        ],
+      },
     },
   },
   { name: 'title', selector: { text: {} } },
@@ -50,7 +56,7 @@ export class MeteoAlarmCardEditor extends LitElement {
   }
 
   private _computeLabel = (schema: { name: string }): string => {
-    const lang = (this.hass?.locale?.language ?? 'en').split('-')[0];
+    const lang = languageOf(this.hass);
     return LABELS[lang]?.[schema.name] ?? LABELS.en[schema.name] ?? schema.name;
   };
 

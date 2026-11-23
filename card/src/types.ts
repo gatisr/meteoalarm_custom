@@ -28,6 +28,7 @@ export interface HassEntity {
   state: string;
   attributes: Record<string, unknown> & {
     friendly_name?: string;
+    device_class?: string;
     alerts?: AlertData[];
     area?: string | null;
   };
@@ -35,7 +36,12 @@ export interface HassEntity {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
-  locale?: { language: string };
+  locale?: {
+    language: string;
+    time_zone?: 'local' | 'server';
+    time_format?: 'language' | 'system' | 'am_pm' | '12' | '24' | 'auto';
+  };
+  config?: { time_zone?: string };
   language?: string;
   formatEntityState?: (stateObj: HassEntity) => string;
 }

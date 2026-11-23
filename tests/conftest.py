@@ -1,6 +1,7 @@
 """Shared fixtures for the MeteoAlarm tests."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -28,10 +29,24 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     yield
 
 
+@pytest.fixture(autouse=True)
+def no_feed_cache_ttl():
+    """Tests swap mocked responses between polls, so never serve from the cache."""
+    with patch("custom_components.meteoalarm_custom.api.CACHE_TTL", 0):
+        yield
+
+
 @pytest.fixture
 def mock_feed(aioclient_mock):
     """Mock the meteoalarm feed and CAP documents for Latvia."""
     aioclient_mock.get(FEED_URL, text=load_fixture("feed.xml"))
     for url, fixture in CAP_URLS.items():
         aioclient_mock.get(url, text=load_fixture(fixture))
+    return aioclient_mock
+
+
+@pytest.fixture
+def mock_feed_only(aioclient_mock):
+    """Mock only the Latvia feed; tests register the CAP documents themselves."""
+    aioclient_mock.get(FEED_URL, text=load_fixture("feed.xml"))
     return aioclient_mock

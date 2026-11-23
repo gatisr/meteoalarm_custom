@@ -7,11 +7,11 @@ A custom integration for [Home Assistant](https://www.home-assistant.io/) that f
 - **Guided setup** - pick the country from a dropdown, then pick your region from the list of regions in the country feed (free-text entry is also allowed, e.g. on calm days when the feed lists nothing). Custom country slugs are accepted so future feed additions keep working.
 - **All active warnings** - the integration talks to the MeteoAlarm feeds directly (no extra Python dependencies) and returns *every* active warning for the region, not just the first one, in your preferred language.
 - **Entities per region** (grouped under one device):
-  - `sensor.<region>_warning_level` - enum: `none` / `minor` / `moderate` / `severe` / `extreme` (translated in the UI). The `alerts` attribute holds the full list of active warnings; the most severe one is also exposed as flat attributes (`event`, `headline`, `onset`, `expires`, `description`, ...).
-  - `sensor.<region>_active_warnings` - number of active warnings.
-  - `sensor.<region>_warnings_start` / `sensor.<region>_warnings_end` - timestamps of the earliest start and latest end of the active warnings.
-  - `binary_sensor.<region>_warning_active` - on while any warning is active (safety device class).
-  - `event.<region>_new_warning` - fires whenever a previously unseen warning appears; the event data contains the whole alert. Great for notifications.
+  - `sensor.meteoalarm_<region>_warning_level` - enum: `none` / `minor` / `moderate` / `severe` / `extreme` (translated in the UI). The `alerts` attribute holds the full list of active warnings; the most severe one is also exposed as flat attributes (`event`, `headline`, `onset`, `expires`, `description`, ...).
+  - `sensor.meteoalarm_<region>_active_warnings` - number of active warnings.
+  - `sensor.meteoalarm_<region>_warnings_start` / `sensor.meteoalarm_<region>_warnings_end` - timestamps of the earliest start and latest end of the active warnings.
+  - `binary_sensor.meteoalarm_<region>_warning_active` - on while any warning is active (safety device class).
+  - `event.meteoalarm_<region>_new_warning` - fires whenever a previously unseen warning appears; the event data contains the whole alert. Great for notifications.
 - **Options flow** - change the language and update interval any time from the integration's *Configure* button (the entry reloads automatically).
 - **Diagnostics** - download a JSON snapshot of the entry and current alerts from the integration page.
 - **Bundled Lovelace card** - `custom:meteoalarm-card` is served by the integration and registered as a dashboard resource automatically (storage-mode dashboards). No separate HACS frontend install needed.
@@ -91,15 +91,17 @@ triggers:
 ## Development
 
 ```bash
-# integration tests
+# integration tests (Python 3.14, matching current Home Assistant)
 python3 -m venv .venv && .venv/bin/pip install -r requirements_test.txt
 .venv/bin/pytest
+.venv/bin/pip install ruff && .venv/bin/ruff check .
 
 # live smoke test against the real feed
 .venv/bin/python tests_manual/test.py latvia "Riga" lv
 
 # Lovelace card (sources in card/, bundle committed to custom_components/.../frontend/)
-cd card && npm install && npm run build
+cd card && npm install && npm run build   # type-check + bundle
+npm test                                   # card unit tests (vitest)
 ```
 
 ## Troubleshooting
@@ -113,6 +115,9 @@ logger:
 ```
 
 The integration page also offers a *Download diagnostics* button with the raw alert data.
+
+- **Entities are "unavailable"** - the feed or a warning document could not be loaded; it recovers on the next successful update (no false "no warnings").
+- **Calm day, empty region list** - the feed only lists regions with active warnings; type the name as MeteoAlarm spells it (diacritics are ignored).
 
 ## License
 

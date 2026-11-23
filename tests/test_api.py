@@ -6,11 +6,19 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.meteoalarm_custom.api import (
     MeteoAlarmApi,
+    MeteoAlarmConnectionError,
+    MeteoAlarmParseError,
     MeteoAlarmUnsupportedCountryError,
     async_get_regions,
 )
 
-from .conftest import FEED_URL
+from .conftest import FEED_URL, load_fixture
+
+RIGA_FOG_URL = "https://feeds.test/cap/riga-fog"
+
+
+def _riga_api(hass, language="en"):
+    return MeteoAlarmApi(async_get_clientsession(hass), "latvia", "Riga", language)
 
 
 async def test_exact_area_match(hass, mock_feed):
@@ -131,3 +139,84 @@ async def test_no_alerts_for_unknown_region(hass, mock_feed):
 
     assert alerts == []
     assert api.resolved_area is None
+
+
+# --- error handling ---------------------------------------------------------
+
+
+
+
+
+async def test_invalid_feed_xml(hass, aioclient_mock):
+    """Broken feed XML raises the dedicated parse error."""
+    aioclient_mock.get(FEED_URL, text="<feed><entry></feed>")
+    with pytest.raises(MeteoAlarmParseError):
+        await _riga_api(hass).get_alerts()
+
+
+async def test_invalid_cap_xml(hass, mock_feed_only):
+    """Broken CAP XML must not be mistaken for 'no alert'."""
+    mock_feed_only.get(RIGA_FOG_URL, text="<alert>")
+    with pytest.raises(MeteoAlarmParseError):
+        await _riga_api(hass).get_alerts()
+
+
+async def test_cap_failure_does_not_look_like_all_clear(hass, mock_feed_only):
+    """A failing CAP request fails the update instead of dropping the alert."""
+    mock_feed_only.get(RIGA_FOG_URL, status=503)
+    with pytest.raises(MeteoAlarmConnectionError):
+        await _riga_api(hass).get_alerts()
+
+
+
+
+
+# --- CAP content ------------------------------------------------------------
+
+
+
+
+
+
+
+
+# --- matching ---------------------------------------------------------------
+
+
+
+
+
+def _feed_with_areas(*areas: str) -> str:
+    entries = "".join(
+        f"""<entry><cap:areaDesc>{area}</cap:areaDesc><cap:severity>Moderate</cap:severity>
+        <link type="application/cap+xml" href="https://feeds.test/cap/riga-fog"/></entry>"""
+        for area in areas
+    )
+    return (
+        '<feed xmlns="http://www.w3.org/2005/Atom" '
+        f'xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">{entries}</feed>'
+    )
+
+
+async def test_ambiguous_loose_match_is_not_guessed(hass, aioclient_mock):
+    """'Riga' on a calm day must not adopt a marine area's warnings."""
+    aioclient_mock.get(
+        FEED_URL, text=_feed_with_areas("Gulf of Riga East", "Gulf of Riga West")
+    )
+    api = _riga_api(hass)
+
+    assert await api.get_alerts() == []
+    assert api.resolved_area is None
+
+
+async def test_loose_match_prefers_area_starting_with_the_name(hass, aioclient_mock):
+    """'Smiltene' resolves to 'Smiltene municipality' even if other areas contain it."""
+    aioclient_mock.get(
+        FEED_URL, text=_feed_with_areas("Smiltene municipality", "North of Smiltene Bay")
+    )
+    aioclient_mock.get(RIGA_FOG_URL, text=load_fixture("cap_riga_fog.xml"))
+    api = MeteoAlarmApi(async_get_clientsession(hass), "latvia", "Smiltene", "en")
+
+    await api.get_alerts()
+
+    assert api.resolved_area == "Smiltene municipality"

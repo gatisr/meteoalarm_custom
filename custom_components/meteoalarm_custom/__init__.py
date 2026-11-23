@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.loader import async_get_integration
 from homeassistant.util import slugify
 
@@ -19,7 +19,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
 )
-from .coordinator import MeteoAlarmConfigEntry, MeteoAlarmCoordinator
+from .coordinator import MeteoAlarmConfigEntry, MeteoAlarmCoordinator, feed_issue_id
 from .frontend import async_register_frontend, async_remove_frontend
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,7 +44,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: MeteoAlarmConfigEntry) 
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: MeteoAlarmConfigEntry) -> None:
-    """Clean up after the last config entry is removed."""
+    """Drop the entry's repair issue and, with the last entry, the card resource."""
+    ir.async_delete_issue(hass, DOMAIN, feed_issue_id(entry.entry_id))
     if not hass.config_entries.async_entries(DOMAIN):
         await async_remove_frontend(hass)
 
@@ -93,11 +94,25 @@ async def async_migrate_entry(hass: HomeAssistant, entry: MeteoAlarmConfigEntry)
                     "Could not migrate unique_id of %s", entity_entry.entity_id
                 )
 
+        new_entry_unique_id: str | None = f"{country}_{slugify(province)}"
+        existing = hass.config_entries.async_entry_for_domain_unique_id(
+            DOMAIN, new_entry_unique_id
+        )
+        if existing is not None and existing.entry_id != entry.entry_id:
+            # Two legacy entries for the same region: keep both working rather
+            # than colliding on the unique_id.
+            _LOGGER.warning(
+                "Config entry %s duplicates %s; leaving its unique_id unset",
+                entry.title,
+                existing.title,
+            )
+            new_entry_unique_id = None
+
         hass.config_entries.async_update_entry(
             entry,
             data=data,
             options=options,
-            unique_id=f"{country}_{slugify(province)}",
+            unique_id=new_entry_unique_id,
             version=3,
         )
         _LOGGER.info(

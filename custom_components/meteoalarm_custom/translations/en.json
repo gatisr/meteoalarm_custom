@@ -19,6 +19,20 @@
         "data_description": {
           "language": "Only languages published by your country's weather service are available; other choices fall back to English."
         }
+      },
+      "reconfigure": {
+        "title": "Change country",
+        "description": "Pick the country for this entry. You choose the region in the next step.",
+        "data": {
+          "country": "Country"
+        }
+      },
+      "reconfigure_region": {
+        "title": "Region in {country}",
+        "description": "Pick the new region. The list contains regions seen in the feed so far ({region_count}); if yours is missing, type its name exactly as MeteoAlarm publishes it.",
+        "data": {
+          "province": "Region"
+        }
       }
     },
     "error": {
@@ -27,7 +41,8 @@
       "cannot_connect": "Could not reach feeds.meteoalarm.org to validate the custom country."
     },
     "abort": {
-      "already_configured": "This region is already configured."
+      "already_configured": "This region is already configured.",
+      "reconfigure_successful": "The entry was updated."
     }
   },
   "options": {
@@ -37,6 +52,10 @@
         "data": {
           "language": "Language of the warning texts",
           "update_interval": "Update interval"
+        },
+        "data_description": {
+          "language": "Only languages published by your country's weather service are available; other choices fall back to English.",
+          "update_interval": "Minutes between updates. Warnings are still removed exactly when they end."
         }
       }
     }
@@ -72,6 +91,12 @@
       "alert_event": {
         "name": "New warning"
       }
+    }
+  },
+  "issues": {
+    "feed_unavailable": {
+      "title": "MeteoAlarm feed for {country} not found",
+      "description": "The MeteoAlarm feed for {country} (region {region}) no longer exists (HTTP 404), so no warnings can be loaded. The feed may have been renamed or retired. Check {url} and change the country with *Reconfigure* on the integration, or remove this entry."
     }
   }
 }

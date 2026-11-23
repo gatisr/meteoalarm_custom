@@ -64,7 +64,9 @@ class MeteoAlarmAlertSensor(MeteoAlarmEntity, SensorEntity):
     """Highest severity of the currently active alerts."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = SEVERITY_ORDER
+    _attr_options = list(SEVERITY_ORDER)
+    # Keep long texts out of the recorder (16 KB attribute limit).
+    _unrecorded_attributes = frozenset({ATTR_ALERTS, ATTR_DESCRIPTION, ATTR_INSTRUCTION})
 
     def __init__(self, coordinator: MeteoAlarmCoordinator) -> None:
         """Initialize the sensor."""

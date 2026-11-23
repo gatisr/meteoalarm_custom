@@ -1,0 +1,7 @@
+target-version = "py313"
+line-length = 100
+extend-exclude = ["card"]
+
+[lint]
+select = ["E", "F", "UP", "B", "BLE"]
+ignore = ["BLE001"]  # blanket excepts are deliberate where the card must never break setup

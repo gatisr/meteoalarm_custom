@@ -1,10 +1,14 @@
 """Tests for setup, unload and config entry migration."""
 
+from datetime import timedelta
+
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.meteoalarm_custom.const import DOMAIN
+
+from .conftest import FEED_URL
 
 
 def _v3_entry() -> MockConfigEntry:
@@ -126,3 +130,82 @@ async def test_future_version_not_supported(hass, mock_feed):
     assert not await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.MIGRATION_ERROR
+
+
+async def test_setup_retries_when_feed_unavailable(hass, aioclient_mock):
+    """A failing feed makes the entry retry instead of failing permanently."""
+    aioclient_mock.get(FEED_URL, status=503)
+    entry = _v3_entry()
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_multiple_entries_set_up_independently(hass, mock_feed):
+    """Two regions of the same country load side by side."""
+    riga = _v3_entry()
+    smiltene = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        title="Smiltene municipality",
+        unique_id="latvia_smiltene_municipality",
+        data={"country": "latvia", "province": "Smiltene municipality", "geocode": None},
+        options={"language": "en", "update_interval": 30},
+    )
+    riga.add_to_hass(hass)
+    smiltene.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(riga.entry_id)
+    await hass.async_block_till_done()
+
+    assert riga.state is ConfigEntryState.LOADED
+    assert smiltene.state is ConfigEntryState.LOADED
+    assert len(riga.runtime_data.data) == 1
+    assert len(smiltene.runtime_data.data) == 2
+
+
+async def test_update_interval_follows_options(hass, mock_feed):
+    """Changing the interval in the options reloads with the new value."""
+    entry = _v3_entry()
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.runtime_data.update_interval == timedelta(minutes=30)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(
+        result["flow_id"], {"language": "en", "update_interval": 5}
+    )
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.update_interval == timedelta(minutes=5)
+
+
+async def test_migration_with_duplicate_region_keeps_both_entries(hass, mock_feed):
+    """Two legacy entries for one region must not collide on unique_id."""
+    first = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        title="Riga",
+        data={"country": "latvia", "province": "Riga", "language": "en"},
+    )
+    second = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        title="Riga (copy)",
+        data={"country": "latvia", "province": "Riga", "language": "lv"},
+    )
+    first.add_to_hass(hass)
+    second.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(first.entry_id)
+    await hass.async_block_till_done()
+
+    assert first.state is ConfigEntryState.LOADED
+    assert second.state is ConfigEntryState.LOADED
+    assert first.unique_id == "latvia_riga"
+    assert second.unique_id is None

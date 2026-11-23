@@ -38,10 +38,19 @@ async def async_register_frontend(hass: HomeAssistant, version: str) -> None:
     if http is None:
         return
 
-    await http.async_register_static_paths(
-        [StaticPathConfig(FRONTEND_URL_PATH, str(path), True)]
-    )
+    # Flag first: concurrent entry setups must not register the route twice.
     hass.data[_REGISTERED_KEY] = True
+    try:
+        await http.async_register_static_paths(
+            [StaticPathConfig(FRONTEND_URL_PATH, str(path), True)]
+        )
+    except RuntimeError:
+        # Route already registered (e.g. integration reloaded) - nothing to do.
+        _LOGGER.debug("Static path %s already registered", FRONTEND_URL_PATH)
+    except Exception:  # noqa: BLE001 - never break integration setup over the card
+        _LOGGER.exception("Could not serve the meteoalarm-card JavaScript")
+        hass.data.pop(_REGISTERED_KEY, None)  # retry on the next setup
+        return
 
     resources = _resources(hass)
     if resources is None or not hasattr(resources, "async_create_item"):
@@ -62,10 +71,13 @@ async def async_register_frontend(hass: HomeAssistant, version: str) -> None:
         _LOGGER.info("Registered Lovelace resource %s", url)
     except Exception:  # noqa: BLE001 - never break integration setup over the card
         _LOGGER.exception("Could not register the meteoalarm-card Lovelace resource")
+        hass.data.pop(_REGISTERED_KEY, None)  # retry on the next setup
 
 
 async def async_remove_frontend(hass: HomeAssistant) -> None:
     """Remove the Lovelace resource when the last config entry is removed."""
+    # Lets a re-added entry register the resource again without a restart.
+    hass.data.pop(_REGISTERED_KEY, None)
     resources = _resources(hass)
     if resources is None or not hasattr(resources, "async_delete_item"):
         return
@@ -83,7 +95,4 @@ def _resources(hass: HomeAssistant):
     lovelace = hass.data.get("lovelace")
     if lovelace is None:
         return None
-    # LovelaceData dataclass in modern HA; a plain dict on very old versions.
-    if isinstance(lovelace, dict):
-        return lovelace.get("resources")
     return getattr(lovelace, "resources", None)
