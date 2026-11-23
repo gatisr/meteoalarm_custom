@@ -2,6 +2,7 @@
   "domain": "meteoalarm_custom",
   "name": "MeteoAlarm Custom",
   "after_dependencies": ["lovelace"],
+  "categories": ["weather_alerts.public_warnings"],
   "codeowners": ["@gatisr"],
   "config_flow": true,
   "dependencies": ["http"],
